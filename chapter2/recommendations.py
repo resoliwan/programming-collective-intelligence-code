@@ -1,27 +1,53 @@
 # A dictionary of movie critics and their ratings of a small
 # set of movies
-critics={'Lisa Rose': {'Lady in the Water': 2.5, 'Snakes on a Plane': 3.5,
- 'Just My Luck': 3.0, 'Superman Returns': 3.5, 'You, Me and Dupree': 2.5, 
- 'The Night Listener': 3.0},
-'Gene Seymour': {'Lady in the Water': 3.0, 'Snakes on a Plane': 3.5, 
- 'Just My Luck': 1.5, 'Superman Returns': 5.0, 'The Night Listener': 3.0, 
- 'You, Me and Dupree': 3.5}, 
-'Michael Phillips': {'Lady in the Water': 2.5, 'Snakes on a Plane': 3.0,
- 'Superman Returns': 3.5, 'The Night Listener': 4.0},
-'Claudia Puig': {'Snakes on a Plane': 3.5, 'Just My Luck': 3.0,
- 'The Night Listener': 4.5, 'Superman Returns': 4.0, 
- 'You, Me and Dupree': 2.5},
-'Mick LaSalle': {'Lady in the Water': 3.0, 'Snakes on a Plane': 4.0, 
- 'Just My Luck': 2.0, 'Superman Returns': 3.0, 'The Night Listener': 3.0,
- 'You, Me and Dupree': 2.0}, 
-'Jack Matthews': {'Lady in the Water': 3.0, 'Snakes on a Plane': 4.0,
- 'The Night Listener': 3.0, 'Superman Returns': 5.0, 'You, Me and Dupree': 3.5},
-'Toby': {'Snakes on a Plane':4.5,'You, Me and Dupree':1.0,'Superman Returns':4.0}}
+critics = {
+  'Lisa Rose': {
+    'Lady in the Water': 2.5, 'Snakes on a Plane': 3.5,
+    'Just My Luck': 3.0, 'Superman Returns': 3.5, 'You, Me and Dupree': 2.5,
+    'The Night Listener': 3.0
+  },
+  'Gene Seymour': {
+    'Lady in the Water': 3.0, 'Snakes on a Plane': 3.5,
+    'Just My Luck': 1.5, 'Superman Returns': 5.0, 'The Night Listener': 3.0,
+    'You, Me and Dupree': 3.5
+  },
+  'Michael Phillips': {
+    'Lady in the Water': 2.5, 'Snakes on a Plane': 3.0,
+    'Superman Returns': 3.5, 'The Night Listener': 4.0
+  },
+  'Claudia Puig': {
+    'Snakes on a Plane': 3.5, 'Just My Luck': 3.0,
+    'The Night Listener': 4.5, 'Superman Returns': 4.0,
+    'You, Me and Dupree': 2.5
+  },
+  'Mick LaSalle': {
+    'Lady in the Water': 3.0, 'Snakes on a Plane': 4.0,
+    'Just My Luck': 2.0, 'Superman Returns': 3.0, 'The Night Listener': 3.0,
+    'You, Me and Dupree': 2.0
+  },
+  'Jack Matthews': {
+    'Lady in the Water': 3.0, 'Snakes on a Plane': 4.0,
+    'The Night Listener': 3.0, 'Superman Returns': 5.0, 'You, Me and Dupree': 3.5
+  },
+  'Toby': {'Snakes on a Plane': 4.5, 'You, Me and Dupree': 1.0, 'Superman Returns': 4.0},
+  'Toby2': {'Snakes on a Plane': 4.0, 'You, Me and Dupree': 1.0, 'Superman Returns': 4.0},
+  'user1': {'A': 5.0, 'B': 5.0, 'C': 0},
+  'user2': {'A': 4.0, 'B': 4.0, 'C': 4.0},
+  'user3': {'A': 1.0, 'B': 1.0, 'C': 1.0}
+}
 
 
 from math import sqrt
-
+# 1과 2의 거리 측
+# sqrt(pow(5-4,2) + pow(5 - 4,2))
+# sqrt(pow(5-1,2) + pow(5 - 1,2))
+#1 / (1 + sqrt(pow(5-4,2) + pow(5 - 4,2)))
+#1 / (1 + sqrt(pow(5-1,2) + pow(5 - 1,2)))
 # Returns a distance-based similarity score for person1 and person2
+  
+sim_distance(critics, 'user1','user2');
+sim_distance(critics, 'user1','user3');
+  
 def sim_distance(prefs,person1,person2):
   # Get the list of shared_items
   si={}
@@ -36,39 +62,37 @@ def sim_distance(prefs,person1,person2):
                       for item in prefs[person1] if item in prefs[person2]])
 
   return 1/(1+sum_of_squares)
-
-# Returns the Pearson correlation coefficient for p1 and p2
-def sim_pearson(prefs,p1,p2):
-  # Get the list of mutually rated items
-  si={}
-  for item in prefs[p1]: 
+  
+def sim_pearson(prefs, p1, p2):
+  si = {}        
+  for item in prefs[p1]:
     if item in prefs[p2]: si[item]=1
-
-  # if they are no ratings in common, return 0
-  if len(si)==0: return 0
-
-  # Sum calculations
+  
   n=len(si)
+  if n==0: return 0
+
   
-  # Sums of all the preferences
-  sum1=sum([prefs[p1][it] for it in si])
-  sum2=sum([prefs[p2][it] for it in si])
+  sum1 = sum([prefs[p1][it] for it in si])
+  sum2 = sum([prefs[p2][it] for it in si])
   
-  # Sums of the squares
-  sum1Sq=sum([pow(prefs[p1][it],2) for it in si])
-  sum2Sq=sum([pow(prefs[p2][it],2) for it in si])	
+  sum1Sq = sum([pow(prefs[p1][it],2) for it in si])
+  sum2Sq = sum([pow(prefs[p2][it],2) for it in si])
   
-  # Sum of the products
-  pSum=sum([prefs[p1][it]*prefs[p2][it] for it in si])
-  
-  # Calculate r (Pearson score)
-  num=pSum-(sum1*sum2/n)
-  den=sqrt((sum1Sq-pow(sum1,2)/n)*(sum2Sq-pow(sum2,2)/n))
+  pSum = sum(prefs[p1][it] * prefs[p2][it] for it in si)
+  num = n*pSum  - sum1 * sum2
+  den = sqrt((n * sum1Sq - pow(sum1,2)) * (n * sum2Sq - pow(sum2,2)))
+
   if den==0: return 0
+  
+  
+  return num/den
+    
 
-  r=num/den
+#sim_person(critics, 'Jack Matthews','Lisa Rose');
+sim_pearson(critics, 'user2','user2');
+sim_person(critics, 'user1','user1');
 
-  return r
+
 
 # Returns the best matches for person from the prefs dictionary. 
 # Number of results and similarity function are optional params.
