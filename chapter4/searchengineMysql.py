@@ -26,15 +26,18 @@ class crawler:
     # Auxilliary function for getting an entry id and adding
     # it if it's not present
     def getentryid(self, table, field, value, createnew=True):
-        cur = self.cur.execute(
-            "select rowid from %s where %s='%s'" % (table, field, value))
-        res = cur.fetchone()
-        if res == None:
-            cur = self.cur.execute(
-                "insert into %s (%s) values ('%s')" % (table, field, value))
-            return cur.lastrowid
-        else:
-            return res[0]
+        try:
+            self.cur.execute(
+                "select id from %s where %s='%s'" % (table, field, value))
+            res = self.cur.fetchone()
+            if res == None:
+                self.cur.execute(
+                    "insert into %s (%s) values ('%s')" % (table, field, value))
+                return self.con.insert_id()
+            else:
+                return res[0]
+        except:
+            print "Unexpected error1:", sys.exc_info()
 
 
             # Index an individual page
@@ -82,8 +85,8 @@ class crawler:
         fromid = self.getentryid('urllist', 'url', urlFrom)
         toid = self.getentryid('urllist', 'url', urlTo)
         if fromid == toid: return
-        cur = self.cur.execute("insert into link(fromid,toid) values (%d,%d)" % (fromid, toid))
-        linkid = cur.lastrowid
+        self.cur.execute("insert into link(fromid,toid) values (%d,%d)" % (fromid, toid))
+        linkid = self.con.insert_id()
         for word in words:
             if word in ignorewords: continue
             wordid = self.getentryid('wordlist', 'word', word)
@@ -151,13 +154,13 @@ class crawler:
         self.cur.execute('create table pagerank(urlid primary key,score)')
 
         # initialize every url with a page rank of 1
-        for (urlid,) in self.cur.execute('select rowid from urllist'):
+        for (urlid,) in self.cur.execute('select id from urllist'):
             self.cur.execute('insert into pagerank(urlid,score) values (%d,1.0)' % urlid)
         self.dbcommit()
 
         for i in range(iterations):
             print "Iteration %d" % (i)
-            for (urlid,) in self.cur.execute('select rowid from urllist'):
+            for (urlid,) in self.cur.execute('select id from urllist'):
                 pr = 0.15
 
                 # Loop through all the pages that link to this one
@@ -197,7 +200,7 @@ class searcher:
         for word in words:
             # Get the word ID
             wordrow = self.cur.execute(
-                "select rowid from wordlist where word='%s'" % word).fetchone()
+                "select id from wordlist where word='%s'" % word).fetch()
             if wordrow != None:
                 wordid = wordrow[0]
                 wordids.append(wordid)
@@ -213,8 +216,8 @@ class searcher:
         # Create the query from the separate parts
         fullquery = 'select %s from %s where %s' % (fieldlist, tablelist, clauselist)
         print fullquery
-        cur = self.cur.execute(fullquery)
-        rows = [row for row in cur]
+        self.cur.execute(fullquery)
+        rows = [row for row in self.cur.fetchall()]
 
         return rows, wordids
 
@@ -235,7 +238,7 @@ class searcher:
 
     def geturlname(self, id):
         return self.cur.execute(
-            "select url from urllist where rowid=%d" % id).fetchone()[0]
+            "select url from urllist where id=%d" % id).fetchone()[0]
 
     def query(self, q):
         rows, wordids = self.getmatchrows(q)
@@ -291,9 +294,9 @@ class searcher:
     def linktextscore(self, rows, wordids):
         linkscores = dict([(row[0], 0) for row in rows])
         for wordid in wordids:
-            cur = self.cur.execute(
-                'select link.fromid,link.toid from linkwords,link where wordid=%d and linkwords.linkid=link.rowid' % wordid)
-            for (fromid, toid) in cur:
+            self.cur.execute(
+                'select link.fromid,link.toid from linkwords,link where wordid=%d and linkwords.linkid=link.id' % wordid)
+            for (fromid, toid) in self.cur.fatchall():
                 if toid in linkscores:
                     pr = self.cur.execute('select score from pagerank where urlid=%d' % fromid).fetchone()[0]
                     linkscores[toid] += pr
@@ -311,7 +314,8 @@ class searcher:
 
     def nnscore(self, rows, wordids):
         # Get unique URL IDs as an ordered list
-        urlids = [urlid for urlid in dict([(row[0], 1) for row in rows])]
-        nnres = mynet.getresult(wordids, urlids)
-        scores = dict([(urlids[i], nnres[i]) for i in range(len(urlids))])
-        return self.normalizescores(scores)
+        #urlids = [urlid for urlid in dict([(row[0], 1) for row in rows])]
+        #nnres = mynet.getresult(wordids, urlids)
+        #scores = dict([(urlids[i], nnres[i]) for i in range(len(urlids))])
+        #return self.normalizescores(scores)
+        return;
