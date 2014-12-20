@@ -214,6 +214,8 @@ class searcher:
                 tablenumber += 1
 
         # Create the query from the separate parts
+        # SELECT * FROM wordlocation A, wordlocation B where A.urlid = B.urlid and A.wordid = 3;
+
         fullquery = 'select %s from %s where %s' % (fieldlist, tablelist, clauselist)
         print fullquery
         self.cur.execute(fullquery)
