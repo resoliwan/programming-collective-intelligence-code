@@ -6,7 +6,7 @@ import MySQLdb as mdb
 import sys
 import nn
 
-
+#sudo /usr/local/mysql/support-files/mysql.server start
 # Create a list of words to ignore
 ignorewords = {'the': 1, 'of': 1, 'to': 1, 'and': 1, 'a': 1, 'in': 1, 'is': 1, 'it': 1}
 
@@ -14,6 +14,7 @@ ignorewords = {'the': 1, 'of': 1, 'to': 1, 'and': 1, 'a': 1, 'in': 1, 'is': 1, '
 class crawler:
     # Initialize the crawler with the name of database
     def __init__(self, dbname):
+        self.dbname = dbname
         self.con = mdb.connect('localhost', 'testuser', 'testtest', dbname)
         self.cur = self.con.cursor()
 
@@ -101,7 +102,7 @@ class crawler:
     # Starting with a list of pages, do a breadth
     # first search to the given depth, indexing pages
     # as we go
-    def crawl(self, pages, depth=1):
+    def crawl(self, pages, depth=2):
         for i in range(depth):
             newpages = {}
             for page in pages:
@@ -135,12 +136,17 @@ class crawler:
 
     # Create the database tables
     def createindextables(self):
+        # self.cur.execute('drop table if exists %s.urllist' % self.dbname)
+        # self.cur.execute('drop table if exists ' + self.dbname + '. wordlist')
+        # self.cur.execute('drop table if exists ' + self.dbname + '. wordlocation')
+        # self.cur.execute('drop table if exists ' + self.dbname + '. link')
+        # self.cur.execute('drop table if exists ' + self.dbname + '. linkwords')
 
         self.cur.execute('create table urllist(id INTEGER  AUTO_INCREMENT, url VARCHAR(500), PRIMARY KEY (id))')
         self.cur.execute('create table wordlist(id INTEGER  AUTO_INCREMENT, word VARCHAR(500), PRIMARY KEY (id))')
-        self.cur.execute('create table wordlocation(id INTEGER  AUTO_INCREMENT, urlid integer,wordid integer,location VARCHAR(500), PRIMARY KEY (id))')
-        self.cur.execute('create table link(id INTEGER  AUTO_INCREMENT, fromid integer,toid integer, PRIMARY KEY (id))')
-        self.cur.execute('create table linkwords(id INTEGER  AUTO_INCREMENT, wordid VARCHAR(500),linkid VARCHAR(500), PRIMARY KEY (id))')
+        self.cur.execute('create table wordlocation(id INTEGER  AUTO_INCREMENT, urlid integer,wordid INTEGER,location INTEGER, PRIMARY KEY (id))')
+        self.cur.execute('create table link(id INTEGER  AUTO_INCREMENT, fromid INTEGER, toid INTEGER, PRIMARY KEY (id))')
+        self.cur.execute('create table linkwords(id INTEGER  AUTO_INCREMENT, wordid INTEGER,linkid INTEGER, PRIMARY KEY (id))')
         self.cur.execute('create index wordidx on wordlist(word)')
         self.cur.execute('create index urlidx on urllist(url)')
         self.cur.execute('create index wordurlidx on wordlocation(wordid)')
@@ -148,13 +154,31 @@ class crawler:
         self.cur.execute('create index urlfromidx on link(fromid)')
         self.dbcommit()
 
+
+    # we have 3 page rank to A and want calculate pageRank probability
+    # (urlId, pageRankScore, url's linkCnt)
+    # (B, 0.5,4),(C, 0.7, 5),(D, 0.2,1)
+    # than a's page rank is
+    # PR(A) = 0.15 + 0.85 * ( PR(B)/links(B) + PR(C)/links(C) + PR(D)/links(D) )
+    # = 0.15 + 0.85 * ( 0.5/4 + 0.7/5 + 0.2/1 )
+    # = 0.15 + 0.85 * ( 0.125 + 0.14 + 0.2)
+    # = 0.15 + 0.85 * 0.465
+    # = 0.54525
+    # but if we want to calculate page rank we need other pageRank score so just init all pageRank to 0.1
+    # it is ok choose any init value
+    # and iterate pageRank
+    # ex) (A, 0.1, 1),(B, 0.1, 4),(C, 0.1, 5),(D, 0.1, 1)
+    # A = 0.15 + 0.85 * (0.1/4 + 0.1/5 + 0.1/1)
+    # if we iterate algorithm to all page it close to real pageRank score
+
     def calculatepagerank(self, iterations=20):
         # clear out the current page rank tables
         self.cur.execute('drop table if exists pagerank')
-        self.cur.execute('create table pagerank(urlid primary key,score)')
+        self.cur.execute('create table pagerank(urlid INTEGER,score INTEGER, PRIMARY KEY (urlid)))')
 
         # initialize every url with a page rank of 1
-        for (urlid,) in self.cur.execute('select id from urllist'):
+        self.cur.execute('select id from urllist')
+        for (urlid,) in self.cur.fatchall():
             self.cur.execute('insert into pagerank(urlid,score) values (%d,1.0)' % urlid)
         self.dbcommit()
 
@@ -164,15 +188,15 @@ class crawler:
                 pr = 0.15
 
                 # Loop through all the pages that link to this one
-                for (linker,) in self.cur.execute(
-                                'select distinct fromid from link where toid=%d' % urlid):
+                self.cur.execute('select distinct fromid from link where toid=%d' % urlid)
+                for (linker,) in self.cur.fatchall():
                     # Get the page rank of the linker
-                    linkingpr = self.cur.execute(
-                        'select score from pagerank where urlid=%d' % linker).fetchone()[0]
+                    self.cur.execute('select score from pagerank where urlid=%d' % linker)
+                    linkingpr = self.cur.fetchone()[0]
 
                     # Get the total number of links from the linker
-                    linkingcount = self.cur.execute(
-                        'select count(*) from link where fromid=%d' % linker).fetchone()[0]
+                    self.cur.execute('select count(*) from link where fromid=%d' % linker)
+                    linkingcount = self.cur.fetchone()[0]
                     pr += 0.85 * (linkingpr / linkingcount)
                 self.cur.execute(
                     'update pagerank set score=%f where urlid=%d' % (pr, urlid))
@@ -181,7 +205,8 @@ class crawler:
 
 class searcher:
     def __init__(self, dbname):
-        self.cur = sqlite.connect(dbname)
+        self.con = mdb.connect('localhost', 'testuser', 'testtest', dbname)
+        self.cur = self.con.cursor()
 
     def __del__(self):
         self.cur.close()
@@ -199,8 +224,8 @@ class searcher:
 
         for word in words:
             # Get the word ID
-            wordrow = self.cur.execute(
-                "select id from wordlist where word='%s'" % word).fetch()
+            self.cur.execute("select id from wordlist where word='%s'" % word)
+            wordrow = self.cur.fetchone()
             if wordrow != None:
                 wordid = wordrow[0]
                 wordids.append(wordid)
@@ -215,7 +240,8 @@ class searcher:
 
         # Create the query from the separate parts
         # SELECT * FROM wordlocation A, wordlocation B where A.urlid = B.urlid and A.wordid = 3;
-
+        # when search 2 word
+        # select w0.urlid,w0.location,w1.location from wordlocation w0,wordlocation w1 where w0.wordid=10 and w0.urlid=w1.urlid and w1.wordid=16
         fullquery = 'select %s from %s where %s' % (fieldlist, tablelist, clauselist)
         print fullquery
         self.cur.execute(fullquery)
@@ -229,9 +255,12 @@ class searcher:
         # This is where we'll put our scoring functions
         weights = [(1.0, self.locationscore(rows)),
                    (1.0, self.frequencyscore(rows)),
-                   (1.0, self.pagerankscore(rows)),
-                   (1.0, self.linktextscore(rows, wordids)),
-                   (5.0, self.nnscore(rows, wordids))]
+                   (1.0, self.distancescore(rows))]
+        # weights = [(1.0, self.locationscore(rows)),
+        #            (1.0, self.frequencyscore(rows)),
+        #            (1.0, self.pagerankscore(rows)),
+        #            (1.0, self.linktextscore(rows, wordids)),
+        #            (5.0, self.nnscore(rows, wordids))]
         for (weight, scores) in weights:
             for url in totalscores:
                 totalscores[url] += weight * scores[url]
@@ -239,8 +268,8 @@ class searcher:
         return totalscores
 
     def geturlname(self, id):
-        return self.cur.execute(
-            "select url from urllist where id=%d" % id).fetchone()[0]
+        self.cur.execute("select url from urllist where id=%d" % id)
+        return self.cur.fetchone()[0]
 
     def query(self, q):
         rows, wordids = self.getmatchrows(q)
@@ -252,8 +281,10 @@ class searcher:
             print '%f\t%s' % (score, self.geturlname(urlid))
         return wordids, [r[1] for r in rankedscores[0:10]]
 
+    # make values 0 < x < 1  1 is the best
     def normalizescores(self, scores, smallIsBetter=0):
         vsmall = 0.00001  # Avoid division by zero errors
+
         if smallIsBetter:
             minscore = min(scores.values())
             return dict([(u, float(minscore) / max(vsmall, l)) for (u, l) in scores.items()])
@@ -262,15 +293,28 @@ class searcher:
             if maxscore == 0: maxscore = vsmall
             return dict([(u, float(c) / maxscore) for (u, c) in scores.items()])
 
+    # url, word frequency count
+    # (a, 10), (b,20), (c, 30)
+    # if big score is better
+    # if we check frequency count then max is better
+    # smallIsBetter = false
+    # maxscore = 30
+    # (a, 1/3),  (b, 2/3), (c, 1)
     def frequencyscore(self, rows):
         counts = dict([(row[0], 0) for row in rows])
         for row in rows: counts[row[0]] += 1
         return self.normalizescores(counts)
 
+    #row = (w0.urlid,w0.location,w1.location)
+    # (a, 10), (b,20), (c, 30)
+    # smallIsBetter = true
+    # minscore = 10
+    # (a, 1),  (b, 1/2), (c, 1/3)
     def locationscore(self, rows):
         locations = dict([(row[0], 1000000) for row in rows])
         for row in rows:
             loc = sum(row[1:])
+            # word can be display more then 1 time if that use lowest value
             if loc < locations[row[0]]: locations[row[0]] = loc
 
         return self.normalizescores(locations, smallIsBetter=1)
@@ -283,16 +327,34 @@ class searcher:
         mindistance = dict([(row[0], 1000000) for row in rows])
 
         for row in rows:
+            #row = (w0.urlid,w0.location,w1.location)
+            #calculate word dist abs(w2 - w1)
             dist = sum([abs(row[i] - row[i - 1]) for i in range(2, len(row))])
+            #ex q = 'test link'
+            #content = 'test link test link'
+            #where w0 = 'test' w1 = 'link'
+            #(url, w0, w1)
+            #(a, 0, 1),(a, 0, 3),(a, 4, 2),(a, 4, 3)
             if dist < mindistance[row[0]]: mindistance[row[0]] = dist
         return self.normalizescores(mindistance, smallIsBetter=1)
 
+    #(1,a,b),(1,a,b),(1,a,c)
+    #uniqueurls (a,b)(a,c)
+    #inboundcount = (b,1),(c,1)
     def inboundlinkscore(self, rows):
         uniqueurls = dict([(row[0], 1) for row in rows])
         inboundcount = dict(
             [(u, self.cur.execute('select count(*) from link where toid=%d' % u).fetchone()[0]) for u in uniqueurls])
         return self.normalizescores(inboundcount)
 
+    #find linktext to point that url and add from url ranksocre to toUrl
+    #find word computer
+    # B's link text has keyword to A, it mean A is probability will be increase which it have a information of computer
+    # (from urlid, tourlId, linktext, from urlId's pageScore)
+    # (B, A, computer, 10), (C, D, computer, 5)
+    # result (A, 10), (D, 5)
+    # nomalized result (A, 1), (D, 1/2)
+    # if we follow algorithm A will be high score than D
     def linktextscore(self, rows, wordids):
         linkscores = dict([(row[0], 0) for row in rows])
         for wordid in wordids:
