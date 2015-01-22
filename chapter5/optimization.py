@@ -13,7 +13,7 @@ destination='LGA'
 
 flights={}
 # 
-for line in file('schedule.txt'):
+for line in file('/Users/lee/machine/programming-collective-intelligence-code/chapter5/schedule.txt'):
   origin,dest,depart,arrive,price=line.strip().split(',')
   flights.setdefault((origin,dest),[])
 
@@ -23,8 +23,11 @@ for line in file('schedule.txt'):
 def getminutes(t):
   x=time.strptime(t,'%H:%M')
   return x[3]*60+x[4]
-
+# [1,4,3,2,7,3,6,3,2,4,5,3]
+# userIdx(goFlightIdx, returnFlightIdx)...
+# user 0 (goFlightIDx 1, return flightIDx 4)
 def printschedule(r):
+  #one man use 2 idx at list r
   for d in range(len(r)/2):
     name=people[d][0]
     origin=people[d][1]
